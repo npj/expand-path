@@ -11,7 +11,7 @@ import Data.Char (isSpace)
 import Data.List (dropWhileEnd)
 import System.IO (FilePath)
 import System.Directory (getHomeDirectory, getCurrentDirectory)
-import System.FilePath.Posix ((</>), normalise)
+import System.FilePath ((</>), normalise, isPathSeparator, isAbsolute)
 import System.Posix.User (UserEntry (homeDirectory), getUserEntryForName)
 
 class (Monad m) => ExpandPathM m where
@@ -31,14 +31,14 @@ expandPathM :: (ExpandPathM m) => FilePath -> m FilePath
 expandPathM origPath = case trim (normalise origPath) of
   []           -> pure []
   ('~':rest)   -> expandHome rest
-  path@('/':_) -> pure path
-  path@_       -> (</>) <$> currentDir <*> pure path
+  path         -> if isAbsolute path
+                     then pure path
+                     else (</>) <$> currentDir <*> pure path
 
-  where expandHome path = case break (== '/') path of
+  where expandHome path = case break isPathSeparator path of
           ("", rest)   -> (</>) <$> homeDir          <*> pure (deslash rest)
           (name, rest) -> (</>) <$> userHomeDir name <*> pure (deslash rest)
 
         deslash path = case path of
-          []         -> []
-          ('/':rest) -> rest
-          _          -> path
+          []     -> []
+          (x:xs) -> if isPathSeparator x then xs else path
